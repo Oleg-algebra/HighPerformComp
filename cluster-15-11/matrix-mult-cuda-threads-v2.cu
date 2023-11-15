@@ -123,6 +123,7 @@ int main() {
 //    path = "matrices/sparsine/sparsine2.mtx";
       path = "matrices/newSparsine2.txt";
    // path = "matrices/test-matrix.txt";
+    path = "matrices/sparsine.mtx";
     int column = 0;
     double *v, *res;
     double **M;
