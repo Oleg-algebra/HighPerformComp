@@ -106,7 +106,8 @@ void checkMatrix(vector<vector<vector<double>>> &matrix){
 int main() {
     string  path;
 //    path = "matrices/sparsine/sparsine2.mtx";
-    path = "/content/drive/MyDrive/HighPerformComput/3-cuda-matrix-mult/cmake-build-debug/matrices/newSparsine2.txt";
+    //path = "/content/drive/MyDrive/HighPerformComput/3-cuda-matrix-mult/cmake-build-debug/matrices/newSparsine2.txt";
+    path = "/kaggle/input/cuda-project/matrices/newSparsine2.txt";
     int column = 0;
     double *v, *res;
     double **M;
