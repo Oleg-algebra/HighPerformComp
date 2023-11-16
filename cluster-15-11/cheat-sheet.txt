@@ -1,0 +1,26 @@
+int main(void)
+int N = 1<<20;
+int numgpus;
+cudaGetDeviceCount (&numgpus);
+std::cout << "GPU Count: " << numgpus << std::endl;
+cudaSetDevice():
+// Obtaining GPU properties
+cudaDeviceProp prop;
+cudaGetDeviceProperties( &prop, 0);
+std::cout << "Multiprocessor Count: << prop.multiProcessorCount << std::endl;
+std::cout << "Thread Count: " << prop.maxThreadsDim [2] << std::endl;
+//Cuda_print_properties (&prop);
+
+
+int numBlocks = min(prop.multiProcessorCount, (N + blockSize - 1)/ blockSize)
+
+
+
+multiply:  main o multiply o
+	mpicc -Wl, --copy-dt-needed-entries -L/usr/local/cuda-11-2/targets/64-1inux/lib main.o multiply.o -lcudart -lstdc++ -o multiply
+main: main.c
+	mpicc -c main.c -o main.o
+cuda: multiply.cu
+	/usr/local/cuda-11.2/bin/nvcc -gencode arch=compute_75,code=sm_75 -c multiply.cu -o multiply.o
+clean:
+	rm *.o multiply
