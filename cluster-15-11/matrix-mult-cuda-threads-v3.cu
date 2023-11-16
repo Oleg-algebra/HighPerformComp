@@ -1,7 +1,6 @@
 #include <iostream>
 #include <fstream>
 #include <experimental/filesystem>
-#include <vector>
 #include <math.h>
 
 using namespace std;
@@ -225,10 +224,15 @@ int main() {
     printGPUInfo();    
 
     cudaSetDevice(0);
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties( &prop, 0);
+
+    cout << "Multiprocessor Count: " << prop.multiProcessorCount << endl;
+    cout << "Thread Count: " << prop.maxThreadsDim[2] << endl;
+
     for(int bs = 32; bs<=32; bs+=32){	
-        int blockSize = 256;
-        int numBlocks = (nPoints + blockSize - 1) / blockSize;
-	//numBlocks = nPoints / blockSize;
+        int blockSize = prop.maxThreadsDim[0];
+        int numBlocks = min(prop.multiProcessorCount, (nPoints + blockSize - 1)/ blockSize);	//numBlocks = nPoints / blockSize;
     
         start(numBlocks,blockSize,path);
     }
