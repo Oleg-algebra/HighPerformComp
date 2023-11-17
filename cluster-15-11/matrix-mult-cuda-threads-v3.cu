@@ -14,12 +14,20 @@ void multMatrixVector(int nPoints,int* rows, int*cols ,double *vals, double *v, 
     for(int i =index; i<nPoints;i+=stride){
         double value = vals[i] * v[cols[i]];
 	
-        resVector[rows[i]] = resVector[rows[i]] + value;
+        //resVector[rows[i]] += value;
+       	double oldValue = resVector[rows[i]];
+	double newValue = oldValue + value;
+
+        resVector[rows[i]] = newValue;
+
+        
 	if(cols[i] == 0){
-            printf("block: %d -- thread: %d -- row index: %d\n",blockIdx.x,threadIdx.x,rows[i]);
-            printf("value written to vector: %f\n",value);
-	    printf("res[%d] = %f\n",rows[i],resVector[rows[i]]);
+            //printf("res[1] = %f\n",resVector[1]);
+            //printf("block: %d -- thread: %d -- row index: %d\n",blockIdx.x,threadIdx.x,rows[i]);
+            //printf("value written to vector: %f  -- resVector[%d] = %f\n",value,rows[i],resVector[rows[i]]);
+	    //printf("col: %d -- resV[%d] = %f -- v[%d] = %f -- value: %f\n",cols[i],rows[i],resVector[rows[i]],cols[i], v[cols[i]],newValue);
 	}
+        
 
     }
 
@@ -94,6 +102,32 @@ void printVector(int n, double*v){
     }
 }
 
+void printDevProp(cudaDeviceProp devProp)
+{
+    printf("Major revision number:         %d\n",  devProp.major);
+    printf("Minor revision number:         %d\n",  devProp.minor);
+    printf("Name:                          %s\n",  devProp.name);
+    printf("Total global memory:           %d\n",  devProp.totalGlobalMem);
+    printf("Total shared memory per block: %d\n",  devProp.sharedMemPerBlock);
+    printf("Total registers per block:     %d\n",  devProp.regsPerBlock);
+    printf("Warp size:                     %d\n",  devProp.warpSize);
+    printf("Maximum memory pitch:          %d\n",  devProp.memPitch);
+    printf("Maximum threads per block:     %d\n",  devProp.maxThreadsPerBlock);
+    for (int i = 0; i < 3; ++i){
+    printf("Maximum dimension %d of block:  %d\n", i, devProp.maxThreadsDim[i]);
+    }
+    for (int i = 0; i < 3; ++i){
+    printf("Maximum dimension %d of grid:   %d\n", i, devProp.maxGridSize[i]);
+    }
+    printf("Clock rate:                    %d\n",  devProp.clockRate);
+    printf("Total constant memory:         %d\n",  devProp.totalConstMem);
+    printf("Texture alignment:             %d\n",  devProp.textureAlignment);
+    printf("Concurrent copy and execution: %s\n",  (devProp.deviceOverlap ? "Yes" : "No"));
+    printf("Number of multiprocessors:     %d\n",  devProp.multiProcessorCount);
+    printf("Kernel execution timeout:      %s\n",  (devProp.kernelExecTimeoutEnabled ? "Yes" : "No"));
+
+}
+
 void start(int numBlocks, int blockSize, string path){
     
     double *v, *res, *vals;
@@ -112,7 +146,7 @@ void start(int numBlocks, int blockSize, string path){
     cudaMallocManaged(&v, N*sizeof(double));
     cudaMallocManaged(&res, N*sizeof(double));  
     cout<<"memory allocated"<<"\n";
-    
+    cout<<"total size memory: "<<(2*nPoints*sizeof(int)+nPoints*sizeof(double)+2*N*sizeof(double))/1024<<" KB\n";
     
     cout<<"reading data from file\n";
     readMatrix(cols,rows,vals,path);
@@ -137,6 +171,7 @@ void start(int numBlocks, int blockSize, string path){
     int blockSize = 256;
     int numBlocks = (nPoints + blockSize - 1) / blockSize;
     */
+
     cout<<"BlockSize: "<<blockSize<<"\n";
     cout<<"numBlocks: "<<numBlocks<<"\n";
 
@@ -146,7 +181,7 @@ void start(int numBlocks, int blockSize, string path){
     cudaDeviceSynchronize();
     //printVector(10,res);
     double maxError = 0.0;
-
+    //printVector(10,res);
 
     int ind = 0;
     for (int i = 0; i < N; i++){
@@ -155,7 +190,7 @@ void start(int numBlocks, int blockSize, string path){
             ind++;
         }
     }
-    double eps = 1e-10;
+    //double eps = 1e-10;
     cout << "Max error: " << maxError << "\n";
     /*
     for(int i = 0; i<N;i++){
@@ -175,6 +210,17 @@ void start(int numBlocks, int blockSize, string path){
         outFile<<"============================\n";
         outFile.close();   
     }
+
+    if(true){
+        fstream resFile;
+        resFile.open("corr_res.txt",ios::out);
+        resFile<<N<<"\n";
+        for(int i = 0; i<N; i++){
+	    resFile<<res[i]<<"\n";
+	}
+        resFile.close();   
+    }
+
     
     delete [] head;
     cudaFree(v);
@@ -211,7 +257,7 @@ void printGPUInfo(){
 int main() {
     string  path;
 //    path = "matrices/sparsine/sparsine2.mtx";
-    //  path = "matrices/newSparsine2.txt";
+   // path = "matrices/newSparsine2.txt";
    // path = "matrices/test-matrix.txt";
     path = "matrices/sparsine.mtx";
 
@@ -221,18 +267,18 @@ int main() {
     cout<<"Head obtained\n";
     int nPoints = head[2];
     
-    printGPUInfo();    
+    //printGPUInfo();    
 
     cudaSetDevice(0);
     cudaDeviceProp prop;
     cudaGetDeviceProperties( &prop, 0);
-
+    printDevProp(prop);
     cout << "Multiprocessor Count: " << prop.multiProcessorCount << endl;
     cout << "Thread Count: " << prop.maxThreadsDim[2] << endl;
 
-    for(int bs = 32; bs<=32; bs+=32){	
-        int blockSize = prop.maxThreadsDim[0];
-        int numBlocks = min(prop.multiProcessorCount, (nPoints + blockSize - 1)/ blockSize);	//numBlocks = nPoints / blockSize;
+    for(int bs = 32; bs<=32; bs+=1){	
+        int blockSize = 2; //prop.maxThreadsDim[2];
+        int numBlocks = 1; //min(prop.multiProcessorCount, (nPoints + blockSize - 1)/ blockSize);
     
         start(numBlocks,blockSize,path);
     }

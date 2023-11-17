@@ -66,7 +66,7 @@ int main() {
     string  path;
 //    path = "matrices/sparsine/sparsine2.mtx";
     //  path = "matrices/newSparsine2.txt";
-   // path = "matrices/test-matrix.txt";
+    //path = "matrices/test-matrix.txt";
     path = "matrices/sparsine.mtx";
 
     int *head = new int[3];
@@ -94,8 +94,8 @@ int main() {
 	int dataNumber = (nPoints-i)/nproces;
 	outFile<<N<<" "<<N<<" "<<dataNumber<<"\n";
     for(int j = i; j<nPoints; j+=nproces){
-	//	cout<<cols[j]<<" "<<rows[j]<<" "<<vals[j]<<"\n";
-		outFile<<cols[j]<<" "<<rows[j]<<" "<<vals[j]<<"\n";
+	//	cout<<rows[j]<<" "<<cols[j]<<" "<<vals[j]<<"\n";
+		outFile<<rows[j]<<" "<<cols[j]<<" "<<vals[j]<<"\n";
 	}
 	outFile.close();
     }    
