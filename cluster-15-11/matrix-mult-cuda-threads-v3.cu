@@ -10,22 +10,25 @@ void multMatrixVector(int nPoints,int* rows, int*cols ,double *vals, double *v, 
 
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
+    double eps = 1e-13;
     //printf("block: %d -- thread: %d -- start index: %d\n",blockIdx.x,threadIdx.x,index);
     for(int i =index; i<nPoints;i+=stride){
         double value = vals[i] * v[cols[i]];
-	
-        //resVector[rows[i]] += value;
-       	double oldValue = resVector[rows[i]];
-	double newValue = oldValue + value;
-
-        resVector[rows[i]] = newValue;
-
+	if(value > eps || value < -eps){
+	    double oldValue = resVector[rows[i]];
+	    int count = 0;		
+            do{
+              resVector[rows[i]] += value;
+	      count++;
+              //printf("block: %d -- thread: %d -- attempt: %d -- row: %d\n",blockIdx.x,threadIdx.x,count,rows[i]);
+	    }while(resVector[rows[i]] == oldValue);	
+        }
         
 	if(cols[i] == 0){
             //printf("res[1] = %f\n",resVector[1]);
             //printf("block: %d -- thread: %d -- row index: %d\n",blockIdx.x,threadIdx.x,rows[i]);
             //printf("value written to vector: %f  -- resVector[%d] = %f\n",value,rows[i],resVector[rows[i]]);
-	    //printf("col: %d -- resV[%d] = %f -- v[%d] = %f -- value: %f\n",cols[i],rows[i],resVector[rows[i]],cols[i], v[cols[i]],newValue);
+	    //printf("col: %d -- resV[%d] = %f -- v[%d] = %f -- value: %f\n",cols[i],rows[i],resVector[rows[i]],cols[i], v[cols[i]],value);
 	}
         
 
@@ -174,6 +177,7 @@ void start(int numBlocks, int blockSize, string path){
 
     cout<<"BlockSize: "<<blockSize<<"\n";
     cout<<"numBlocks: "<<numBlocks<<"\n";
+    cout<<"numberOfThreads: "<<numBlocks*blockSize<<"\n";
 
     cout<<"Starting computation\n";
     multMatrixVector<<<numBlocks,blockSize>>>(nPoints,rows,cols,vals,v,res);
@@ -190,15 +194,16 @@ void start(int numBlocks, int blockSize, string path){
             ind++;
         }
     }
-    //double eps = 1e-10;
+    
     cout << "Max error: " << maxError << "\n";
     /*
+    double eps = 1e-10;
     for(int i = 0; i<N;i++){
-        if(fabs(res[i] - 0.0)>eps){
+        if(fabs(res[i])>eps){
             printf("res[%d] = %f\n",i,res[i]);
         }
-    }
-    */
+    }*/
+    
     if(true){
         fstream outFile;
         outFile.open("log_file.txt",ios::app);
@@ -256,9 +261,9 @@ void printGPUInfo(){
 
 int main() {
     string  path;
-//    path = "matrices/sparsine/sparsine2.mtx";
-   // path = "matrices/newSparsine2.txt";
-   // path = "matrices/test-matrix.txt";
+    //path = "matrices/sparsine/sparsine2.mtx";
+    //path = "matrices/newSparsine2.txt";
+    //path = "matrices/test-matrix.txt";
     path = "matrices/sparsine.mtx";
 
     int *head = new int[3];
@@ -272,13 +277,13 @@ int main() {
     cudaSetDevice(0);
     cudaDeviceProp prop;
     cudaGetDeviceProperties( &prop, 0);
-    printDevProp(prop);
+    //printDevProp(prop);
     cout << "Multiprocessor Count: " << prop.multiProcessorCount << endl;
     cout << "Thread Count: " << prop.maxThreadsDim[2] << endl;
 
-    for(int bs = 32; bs<=32; bs+=1){	
-        int blockSize = 2; //prop.maxThreadsDim[2];
-        int numBlocks = 1; //min(prop.multiProcessorCount, (nPoints + blockSize - 1)/ blockSize);
+    for(int bs = 32; bs<=32; bs+=32){	
+        int blockSize = prop.maxThreadsDim[0];
+        int numBlocks = min(prop.multiProcessorCount, (nPoints + blockSize - 1)/ blockSize);
     
         start(numBlocks,blockSize,path);
     }
