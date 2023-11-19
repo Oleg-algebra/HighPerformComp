@@ -171,6 +171,16 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
     cudaMallocManaged(&rows, nPoints*sizeof(int));
     cudaMallocManaged(&cols, nPoints*sizeof(int));
     //printf("rank %d memory allocation finished...\n",rank);
+
+    int memoryUsed = 0;
+    memoryUsed += N*sizeof(int);
+    memoryUsed += 3*columsN*sizeof(double);
+    memoryUsed += 2*nPoints*sizeof(int); 
+    memoryUsed += nPoints*sizeof(double);
+
+    memoryUsed = memoryUsed / 1024;
+
+    printf("rank %d -- memory used %d KB\n",rank,memoryUsed);
 	
     auto stop = high_resolution_clock::now();
 

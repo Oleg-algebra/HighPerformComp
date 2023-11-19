@@ -161,22 +161,27 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
     string fileName = "chunk_" + std::to_string(rank)+".txt";
     readHead(fileName, head);
     int N = head[0];
-    int columsN = head[1];
+    int Ncols = head[1];
     int nPoints = head[2];
 
-    //printf("rows: %d --- columns: %d\n",N,columsN);
+    //printf("rows: %d --- columns: %d\n",N,Ncols);
         
     auto start = high_resolution_clock::now();
 
     //printf("rank %d allocating memory...\n",rank);
-    cudaMallocManaged(&vector_gpu, columsN*sizeof(double));
-    cudaMallocManaged(&resVector_gpu, columsN*sizeof(double));
-    cudaMallocManaged(&valid_gpu, columsN*sizeof(double));
+    cudaMallocManaged(&vector_gpu, Ncols*sizeof(double));
+    cudaMallocManaged(&resVector_gpu, Ncols*sizeof(double));
+    cudaMallocManaged(&valid_gpu, Ncols*sizeof(double));
     cudaMallocManaged(&M, N*sizeof(double**));
 
     cudaMallocManaged(&vals, nPoints*sizeof(double));
     cudaMallocManaged(&rows, nPoints*sizeof(int));
     cudaMallocManaged(&cols, nPoints*sizeof(int));
+
+    int memoryUsed = 0;
+    memoryUsed += 3*Ncols*sizeof(double);
+    memoryUsed += 2*nPoints*sizeof(int);
+    memoryUsed += nPoints*sizeof(double);
 
     cudaMallocManaged(&colsN, N*sizeof(int));
     for(int i = 0; i<N; i++){
@@ -194,14 +199,20 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
             cudaMallocManaged(&(M[i]),colsN[i]*sizeof(double*));
             for(int j = 0; j<colsN[i]; j++){
                 cudaMallocManaged(&(M[i][j]),2*sizeof(double));
+                memoryUsed += 2*sizeof(double);
             }
 	}else{
 	    cudaMallocManaged(&(M[i]),1*sizeof(double*));
 	    cudaMallocManaged(&(M[i][0]),2*sizeof(double));
+            memoryUsed += 2*sizeof(double);
 	    //cout<<"rank: "<<rank<<" empty row\n";	
 	}
     }
     //printf("rank %d memory allocation finished...\n",rank);
+    
+    memoryUsed = memoryUsed / 1024;
+    printf("rank: %d -- memory used: %d KB\n",rank,memoryUsed);
+
     auto stop = high_resolution_clock::now();
 
     auto duration = duration_cast<milliseconds>(stop - start);
@@ -231,7 +242,7 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
 
     	
     //printf("rank %d copy data to GPU.....\n",rank);
-    for(int i = 0; i<columsN; i++){
+    for(int i = 0; i<Ncols; i++){
 		vector_gpu[i] = vector[i];
 		resVector_gpu[i] = 0.0;
 		valid_gpu[i] = 0.0;
@@ -261,14 +272,14 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
 	
     //printf("rank %d copy data to CPU.....\n",rank);
     //printf("rank %d res[%d] = %f\n",rank,rank, resVector_gpu[rank]);
-    for(int i = 0; i<columsN; i++){
+    for(int i = 0; i<Ncols; i++){
 		vector[i] = vector_gpu[i];
 		resVector[i] = resVector_gpu[i];
 		validVector[i] = valid_gpu[i];
     }
 	
     double maxError = 0.0;
-    for (int i = 0; i < columsN; i++){
+    for (int i = 0; i < N; i++){
             maxError = fmax(maxError, fabs(resVector_gpu[i]-valid_gpu[i]));
     }
     

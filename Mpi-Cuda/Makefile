@@ -11,5 +11,8 @@ all:
 	make cuda
 	make main
 	make run
+data:
+	g++ prepare_data.cpp -o prepare_data
+	./prepare_data
 clean:
 	rm *.o main

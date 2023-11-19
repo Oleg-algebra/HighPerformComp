@@ -3,6 +3,7 @@
 #include <experimental/filesystem>
 
 using namespace std;
+using namespace std::chrono;
 
 void getData(const string& dataString, double *storage){
     stringstream ss(dataString);
@@ -63,9 +64,10 @@ void readHead(const string &fileName, int *headData){
 
 
 int main() {
+    auto start = high_resolution_clock::now();
     string  path;
-    //path = "matrices/sparsine.mtx";
-    path = "matrices/TF18.mtx";
+    path = "matrices/sparsine.mtx";
+    //path = "matrices/TF18.mtx";
     //path  = "matrices/rail_79841.mtx";
     //path = "matrices/m_t1.mtx";
     
@@ -109,7 +111,15 @@ int main() {
 	}
 	outFile.close();
     }
-    cout<<"chunks created\n";    
+    cout<<"chunks created\n"; 
+
+    auto stop = high_resolution_clock::now();
+
+    auto duration = duration_cast<milliseconds>(stop - start);
+    
+    cout <<" data preparation time: "
+         << duration.count() << " milliseconds" << endl;
+   
 	
     
     delete [] rows;

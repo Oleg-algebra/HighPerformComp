@@ -59,12 +59,12 @@ int main (int argc, char **argv)
     double validVector[col];
     
     for(int i = 0; i<col; i++){
-        vector[i] = 1.0;
+        vector[i] = 2.0;
         resVector[i] = 0.0;
 	validVector[i] = 0.0;
     }
     vector[0] = 1.0;
-    vector[1] = 1.0;		
+		
 
     //printf("rank: %d of %d\n",rank,nprocs);
      	 

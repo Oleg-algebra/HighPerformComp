@@ -3,6 +3,7 @@
 #include <experimental/filesystem>
 
 using namespace std;
+using namespace std::chrono;
 
 void getData(const string& dataString, double *storage){
     stringstream ss(dataString);
@@ -63,12 +64,10 @@ void readHead(const string &fileName, int *headData){
 
 
 int main() {
+    auto start = high_resolution_clock::now();
     string  path;
-    //path = "matrices/sparsine/sparsine2.mtx";
-    //path = "matrices/newSparsine2.txt";
-    //path = "matrices/test-matrix.txt";
-    //path = "matrices/sparsine.mtx";
-    path = "matrices/TF18.mtx";
+    path = "matrices/sparsine.mtx";
+    //path = "matrices/TF18.mtx";
     //path  = "matrices/rail_79841.mtx";
     //path = "matrices/m_t1.mtx";
     
@@ -93,26 +92,39 @@ int main() {
     readMatrix(cols,rows,vals,path);
     
     cout<<"Data reading Finished\n";
-    
+    cout<<"creating chunks...\n";
     int nproces = 8;
     for(int i = 0; i < nproces; i++){
 	fstream outFile;
 	string fileName = "chunk_" + std::to_string(i)+".txt";
         //fileName = path;
 	outFile.open(fileName,ios::out);
-	int dataNumber = (nPoints-i)/nproces;
+	int dataNumber = 0;
+        for(int j = i; j<nPoints; j+=nproces){
+            dataNumber ++;
+	}
+
 	outFile<<N<<" "<<M<<" "<<dataNumber<<"\n";
-    for(int j = i; j<nPoints; j+=nproces){
+        for(int j = i; j<nPoints; j+=nproces){
 	//	cout<<rows[j]<<" "<<cols[j]<<" "<<vals[j]<<"\n";
 		outFile<<rows[j]<<" "<<cols[j]<<" "<<vals[j]<<"\n";
 	}
 	outFile.close();
-    }    
+    }
+    cout<<"chunks created\n"; 
+
+    auto stop = high_resolution_clock::now();
+
+    auto duration = duration_cast<milliseconds>(stop - start);
+    
+    cout <<" data preparation time: "
+         << duration.count() << " milliseconds" << endl;
+   
 	
     
-	delete [] rows;
-	delete [] cols;
-	delete [] vals; 
+    delete [] rows;
+    delete [] cols;
+    delete [] vals; 
     delete [] head;
     return 0;
 }

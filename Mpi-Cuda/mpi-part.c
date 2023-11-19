@@ -59,7 +59,7 @@ int main (int argc, char **argv)
     double validVector[col];
     
     for(int i = 0; i<col; i++){
-        vector[i] = 0.0;
+        vector[i] = 2.0;
         resVector[i] = 0.0;
 	validVector[i] = 0.0;
     }
