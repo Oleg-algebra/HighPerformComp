@@ -4,36 +4,19 @@
 #include <math.h>
 
 using namespace std;
-using namespace std::chrono;
-
 __global__ 
-void multMatrixVector(int N,int* rows, int*cols ,double *vals, double *v, double *resVector,int *rowDataNumber){
+void multMatrixVector(int N,double ***M, double *v, double *resVector,int *colsN){
     //TODO: rewrite function
 
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = blockDim.x * gridDim.x;
-
     //printf("block: %d -- thread: %d -- start index: %d\n",blockIdx.x,threadIdx.x,index);
     for(int i =index; i<N;i+=stride){
-	int start;
-	if( i == 0){
-	    start = 0;
-	}else{
-	    start = rowDataNumber[i-1];
-	}
-	for(int j = start; j<rowDataNumber[i];j++){
-	    double value = vals[j] * v[cols[j]];
-	    resVector[rows[j]] += value;
-	}    
-        
-	        
-	if(cols[i] == 0){
-            //printf("res[1] = %f\n",resVector[1]);
-            //printf("block: %d -- thread: %d -- row index: %d\n",blockIdx.x,threadIdx.x,rows[i]);
-            //printf("value written to vector: %f  -- resVector[%d] = %f\n",value,rows[i],resVector[rows[i]]);
-	    //printf("col: %d -- resV[%d] = %f -- v[%d] = %f -- value: %f\n",cols[i],rows[i],resVector[rows[i]],cols[i], v[cols[i]],value);
-	}
-        
+        for(int j = 0; j<colsN[i]; j++){
+	    int col = (int) M[i][j][0];
+	    double value = M[i][j][1];
+	    resVector[i]+=(value * v[col]);
+	}        
 
     }
 
@@ -52,7 +35,7 @@ void getData(const string& dataString, double *storage){
     }
 }
 
-void readMatrix(int *cols,int *rows, double *vals, int *rowDataNumber,string& fileName){
+void readMatrix(int *cols,int *rows, double *vals, int *colsN,string& fileName){
 
     fstream file;
     file.open(fileName,ios::in);
@@ -66,9 +49,9 @@ void readMatrix(int *cols,int *rows, double *vals, int *rowDataNumber,string& fi
         while(getline(file,text)){
             getData(text,values);
             cols[counter] = (int)values[1];
-	    rows[counter] = (int)values[0];
-	    vals[counter] = values[2];
-            rowDataNumber[(int)values[0]] += 1;
+	        rows[counter] = (int)values[0];
+	        vals[counter] = values[2];
+            colsN[(int)values[0]] +=1;
             counter++;
             }
         file.close();
@@ -108,7 +91,7 @@ void printVector(int n, double*v){
         printf("v[%d] = %f\n",i,v[i]);
     }
 }
-/*
+
 void printDevProp(cudaDeviceProp devProp)
 {
     printf("Major revision number:         %d\n",  devProp.major);
@@ -134,12 +117,11 @@ void printDevProp(cudaDeviceProp devProp)
     printf("Kernel execution timeout:      %s\n",  (devProp.kernelExecTimeoutEnabled ? "Yes" : "No"));
 
 }
-*/
 
 void start(int numBlocks, int blockSize, string path){
     
-    double *v, *res, *vals;
-    int *rows, *cols, *rowDataNumber;
+    double *v, *res, *vals, ***M;
+    int *rows, *cols, *colsN;
     cout<<"memory allocation starting..."<<"\n";
     int *head = new int[3];
     cout<<"reading head\n";
@@ -148,89 +130,77 @@ void start(int numBlocks, int blockSize, string path){
     int nPoints = head[2];
     int N = head[0];
     cout<<"data points number: "<<(int)nPoints<<"\n";
-
-    auto start = high_resolution_clock::now();
+	
     cudaMallocManaged(&cols, nPoints*sizeof(int));
-    cudaMallocManaged(&rowDataNumber, N*sizeof(int));
-
+    cudaMallocManaged(&colsN, N*sizeof(int));
     cudaMallocManaged(&rows, nPoints*sizeof(int));
     cudaMallocManaged(&vals, nPoints*sizeof(double));
     cudaMallocManaged(&v, N*sizeof(double));
-    cudaMallocManaged(&res, N*sizeof(double));  
+    cudaMallocManaged(&res, N*sizeof(double)); 
+    cudaMallocManaged(&M, N*sizeof(double**));
     cout<<"memory allocated"<<"\n";
-    cout<<"total size memory: "<<(2*nPoints*sizeof(int)+nPoints*sizeof(double)+2*N*sizeof(double))/1024<<" KB\n";
-    
-    cout<<"reading data from file\n";
-    readMatrix(cols,rows,vals,rowDataNumber,path);
-    cout<<"Data reading Finished\n";
 
-    auto stop = high_resolution_clock::now();
-
-    auto duration = duration_cast<milliseconds>(stop - start);
-
-    cout <<" GPU memory allocation time: "
-         << duration.count() << " milliseconds" << endl;
-
-    for(int i = 0; i<10; i++){
-	printf("rowDataNumber[%d] = %d\n",i,rowDataNumber[i]);
-    }
-    cout<<"===============================\n";
-
-    int nonZero = 0;
-    for(int i = 0; i<N; i++){
-	    if(nonZero == 0){
-	        nonZero = rowDataNumber[i];
-	        continue;
-	    }else{
-	       rowDataNumber[i] += nonZero;
-	       nonZero = rowDataNumber[i];
-	    }
-    }
-
-
-    int maxValue = 0;
-    for(int i = 0; i<N; i++){
-	if(i < 10){
-	    printf("rowDataNumber[%d] = %d\n",i,rowDataNumber[i]);
-	}
-	if(rowDataNumber[i] > maxValue){
-	    maxValue = rowDataNumber[i];
-	}
-    }
-    cout<<"Max value: "<<maxValue<<"\n";
-    
     cout<<"filling v and res with zeros\n";
+	
     for(int i = 0; i<N; i++){
 	v[i] = 0.0;
 	res[i] = 0.0;
+        colsN[i] = 0;
     }
     v[0] = 1.0;
-    
-    /*
-    cout<<"printing matrix\n";
-    printMatrix(22,rows,cols,vals);
-    cout<<"printing vector v\n";
-    printVector(10,v);
-    cout<<"printing vector res\n";
-    printVector(10,res);
-    
 
-    int blockSize = 256;
-    int numBlocks = (nPoints + blockSize - 1) / blockSize;
-    */
+    cout<<"total size memory: "<<(2*nPoints*sizeof(int)+nPoints*sizeof(double)+2*N*sizeof(double))/1024<<" KB\n";
+    
+    cout<<"reading data from file\n";
+    readMatrix(cols,rows,vals,colsN,path);
+    cout<<"Data reading Finished\n";
+
+
+    int *colsNcopy = new int[N];
+    for(int i = 0; i<N; i++){
+        colsNcopy[i] =colsN[i]; 
+        
+    }
+	
+	cout<<"matrix memory allocation starting...\n";
+	for(int i = 0; i<N; i++){
+		if(colsN[i] > 0){
+		    cudaMallocManaged(&(M[i]),colsN[i]*sizeof(double*));
+			for(int j = 0; j<colsN[i]; j++){
+                cudaMallocManaged(&(M[i][j]),2*sizeof(double));
+			}
+		}else{
+		    cudaMallocManaged(&(M[i]),1*sizeof(double*));
+		    cudaMallocManaged(&(M[i][0]),2*sizeof(double));
+		    cout<<"empty row\n";	
+		}
+	}
+	cout<<"matrix memory allocation finished\n";
+	
+	cout<<"matrix filling starting...\n";
+	for(int i = 0; i< nPoints; i++){
+	    int row = rows[i];
+        int col = cols[i];
+        double value = vals[i];
+        int colInd = colsNcopy[row] - 1;
+        M[row][colInd][0] = (double) col;
+        M[row][colInd][1] = value;
+        colsNcopy[row] = colInd;		
+	}
+	
+	cout<<"matrix filling finished\n";    
+    
 
     cout<<"BlockSize: "<<blockSize<<"\n";
     cout<<"numBlocks: "<<numBlocks<<"\n";
-    cout<<"numberOfThreads: "<<numBlocks*blockSize<<"\n";
 
     cout<<"Starting computation\n";
-    multMatrixVector<<<numBlocks,blockSize>>>(N,rows,cols,vals,v,res,rowDataNumber);
+    multMatrixVector<<<numBlocks,blockSize>>>(N,M,v,res,colsN);
     cout<<"Computation finished\n";
     cudaDeviceSynchronize();
-    //printVector(10,res);
-    double maxError = 0.0;
-    //printVector(10,res);
 
+    double maxError = 0.0;
+    
     int ind = 0;
     for (int i = 0; i < N; i++){
         if(cols[ind] == 0 && rows[ind] == i){	
@@ -238,12 +208,12 @@ void start(int numBlocks, int blockSize, string path){
             ind++;
         }
     }
-    
+
     cout << "Max error: " << maxError << "\n";
-    
-    double eps = 1e-10;
+
+    double eps = 1e-10;    
     for(int i = 0; i<N;i++){
-        if(fabs(res[i])>eps){
+        if(fabs(res[i] - 0.0)>eps){
             printf("res[%d] = %f\n",i,res[i]);
         }
     }
@@ -272,12 +242,14 @@ void start(int numBlocks, int blockSize, string path){
 
     
     delete [] head;
+    delete [] colsNcopy;
     cudaFree(v);
     cudaFree(res);
     cudaFree(vals);
     cudaFree(rows);
     cudaFree(cols);
-    cudaDeviceSynchronize();
+    cudaFree(colsN);
+    cudaFree(M);
 }
 
 void printGPUInfo(){
@@ -325,8 +297,8 @@ int main() {
     cout << "Multiprocessor Count: " << prop.multiProcessorCount << endl;
     cout << "Thread Count: " << prop.maxThreadsDim[2] << endl;
 
-    for(int bs = 32; bs<=32; bs+=32){	
-        int blockSize = prop.maxThreadsDim[0];
+    for(int bs = 32; bs<=32; bs+=1){	
+        int blockSize = prop.maxThreadsDim[2];
         int numBlocks = min(prop.multiProcessorCount, (nPoints + blockSize - 1)/ blockSize);
     
         start(numBlocks,blockSize,path);

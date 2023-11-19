@@ -166,7 +166,8 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
 
     //printf("rows: %d --- columns: %d\n",N,Ncols);
         
-	
+    auto start = high_resolution_clock::now();
+
     //printf("rank %d allocating memory...\n",rank);
     cudaMallocManaged(&vector_gpu, Ncols*sizeof(double));
     cudaMallocManaged(&resVector_gpu, Ncols*sizeof(double));
@@ -201,7 +202,14 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
 	}
     }
     //printf("rank %d memory allocation finished...\n",rank);
-    
+    auto stop = high_resolution_clock::now();
+
+    auto duration = duration_cast<milliseconds>(stop - start);
+
+    cout << " rank: "<<rank<<" GPU memory allocation time: "
+         << duration.count() << " milliseconds" << endl;
+
+   
     int *colsNcopy = new int[N];
     for(int i = 0; i<N; i++){
         colsNcopy[i] =colsN[i]; 
@@ -235,7 +243,7 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
     //cout<<"blockSize: "<<blockSize<<"\n";
     //cout<<"numBlocks: "<<numBlocks<<"\n";
     
-    auto start = high_resolution_clock::now();
+    start = high_resolution_clock::now();
     //printf("rank %d starting computations\n",rank);	
     multMatrixVector<<<numBlocks,blockSize>>>(N,M,vector_gpu,resVector_gpu,colsN);
     //printf("rank %d finished computations\n",rank);
@@ -245,8 +253,8 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
     multMatrixVectorValid<<<1,1>>>(nPoints,rows, cols ,vals,vector_gpu,valid_gpu);
     //printf("rank %d finished computations of validaiton vector\n",rank);
     cudaDeviceSynchronize();
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<milliseconds>(stop - start);
+    stop = high_resolution_clock::now();
+    duration = duration_cast<milliseconds>(stop - start);
 
     cout << " rank: "<<rank<<" GPU computation time: "
          << duration.count() << " milliseconds" << endl;
