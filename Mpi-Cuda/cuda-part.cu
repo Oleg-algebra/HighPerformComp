@@ -161,17 +161,17 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
     string fileName = "chunk_" + std::to_string(rank)+".txt";
     readHead(fileName, head);
     int N = head[0];
-    int Ncols = head[1];
+    int columsN = head[1];
     int nPoints = head[2];
 
-    //printf("rows: %d --- columns: %d\n",N,Ncols);
+    //printf("rows: %d --- columns: %d\n",N,columsN);
         
     auto start = high_resolution_clock::now();
 
     //printf("rank %d allocating memory...\n",rank);
-    cudaMallocManaged(&vector_gpu, Ncols*sizeof(double));
-    cudaMallocManaged(&resVector_gpu, Ncols*sizeof(double));
-    cudaMallocManaged(&valid_gpu, Ncols*sizeof(double));
+    cudaMallocManaged(&vector_gpu, columsN*sizeof(double));
+    cudaMallocManaged(&resVector_gpu, columsN*sizeof(double));
+    cudaMallocManaged(&valid_gpu, columsN*sizeof(double));
     cudaMallocManaged(&M, N*sizeof(double**));
 
     cudaMallocManaged(&vals, nPoints*sizeof(double));
@@ -231,7 +231,7 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
 
     	
     //printf("rank %d copy data to GPU.....\n",rank);
-    for(int i = 0; i<Ncols; i++){
+    for(int i = 0; i<columsN; i++){
 		vector_gpu[i] = vector[i];
 		resVector_gpu[i] = 0.0;
 		valid_gpu[i] = 0.0;
@@ -261,14 +261,14 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector, dou
 	
     //printf("rank %d copy data to CPU.....\n",rank);
     //printf("rank %d res[%d] = %f\n",rank,rank, resVector_gpu[rank]);
-    for(int i = 0; i<Ncols; i++){
+    for(int i = 0; i<columsN; i++){
 		vector[i] = vector_gpu[i];
 		resVector[i] = resVector_gpu[i];
 		validVector[i] = valid_gpu[i];
     }
 	
     double maxError = 0.0;
-    for (int i = 0; i < N; i++){
+    for (int i = 0; i < columsN; i++){
             maxError = fmax(maxError, fabs(resVector_gpu[i]-valid_gpu[i]));
     }
     

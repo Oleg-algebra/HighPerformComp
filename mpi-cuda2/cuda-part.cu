@@ -45,6 +45,32 @@ void multMatrixVector(int N,int* rows, int*cols ,double *vals, double *v, double
 
 }
 
+//__global__ 
+void multMatrixVectorValid(int nPoints,int* rows, int*cols ,double *vals, double *v, double *resVector){
+
+    //int index = blockIdx.x * blockDim.x + threadIdx.x;
+    //int stride = blockDim.x * gridDim.x;
+    //printf("index: %d\n",index);
+    //printf("stride: %d\n",stride);
+
+    //printf("block: %d -- thread: %d -- start index: %d\n",blockIdx.x,threadIdx.x,index);
+    for(int i =0; i<nPoints;i++){
+
+        double value = vals[i] * v[cols[i]];
+	resVector[rows[i]] += value;
+	        
+	//if(cols[i] == 0){
+            //printf("res[1] = %f\n",resVector[1]);
+            //printf("block: %d -- thread: %d -- row index: %d\n",blockIdx.x,threadIdx.x,rows[i]);
+            //printf("value written to vector: %f  -- resVector[%d] = %f\n",value,rows[i],resVector[rows[i]]);
+	    //printf("col: %d -- resV[%d] = %f -- v[%d] = %f -- value: %f\n",cols[i],rows[i],resVector[rows[i]],cols[i], v[cols[i]],value);
+	//}
+        
+
+    }
+
+}
+
 void getData(const string& dataString, double *storage){
     stringstream ss(dataString);
     string singleData;
@@ -81,7 +107,7 @@ void readMatrix(int *cols,int *rows, double *vals, int *rowDataNumber,string& fi
     } else{
         cout << "file closed"<<"\n";
     }
-    cout<<"data written: "<<counter<<"\n";
+    //cout<<"data written by function: "<<counter<<"\n";
 }
 
 void readHead(const string &fileName, int *headData){
@@ -116,14 +142,14 @@ void printVector(int n, double*v){
 }
 
 
-extern "C" void launch_multiply(int rank, double *vector, double *resVector)
+extern "C" void launch_multiply(int rank, double *vector, double *resVector, double* validVector)
 {
     //printf("rank %d choosing GPU....\n",rank);
     cudaSetDevice(rank);
     cudaDeviceProp prop;
     cudaGetDeviceProperties( &prop, 0);
 
-    double *vector_gpu, *resVector_gpu, *vals, *validationVec;
+    double *vector_gpu, *resVector_gpu, *vals, *validVec_gpu;
     int *cols, *rows,*rowDataNumber;
     
     int *head = new int[3];  
@@ -131,31 +157,37 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector)
     readHead(fileName, head);
     int N = head[0];
     int nPoints = head[2];
+    int columsN = head[1];
     //printf("rank: %d -- N=%d\n",rank,N);
     
-    printf("rank %d allocating memory...\n",rank);
+	auto start = high_resolution_clock::now();
+    //printf("rank %d allocating memory...\n",rank);
     cudaMallocManaged(&rowDataNumber, N*sizeof(int));
-    cudaMallocManaged(&vector_gpu, N*sizeof(double));
-    cudaMallocManaged(&resVector_gpu, N*sizeof(double));
-    cudaMallocManaged(&validationVec, N*sizeof(double));
+    cudaMallocManaged(&vector_gpu, columsN*sizeof(double));
+    cudaMallocManaged(&resVector_gpu, columsN*sizeof(double));
+    cudaMallocManaged(&validVec_gpu, columsN*sizeof(double));
 
     cudaMallocManaged(&vals, nPoints*sizeof(double));
     cudaMallocManaged(&rows, nPoints*sizeof(int));
     cudaMallocManaged(&cols, nPoints*sizeof(int));
-    printf("rank %d memory allocation finished...\n",rank);
-    
-    printf("rank %d reading chunk_%d\n",rank,rank);
-    readMatrix(cols,rows,vals,rowDataNumber,fileName);
-    printf("rank %d data written %d\n",rank,nPoints);
-    printf("rank %d finished reading chunk_%d\n",rank,rank);
-    /*
-    for(int i = 0; i<5; i++){
-	printf("rank: %d -- row: %d -- col: %d  -- val: %f\n",rank,rows[i],cols[i],vals[i]);
-    }*/
+    //printf("rank %d memory allocation finished...\n",rank);
+	
+    auto stop = high_resolution_clock::now();
 
+    auto duration = duration_cast<milliseconds>(stop - start);
+    
+    cout << " rank: "<<rank<<" GPU memory allocation time: "
+         << duration.count() << " milliseconds" << endl;
+	
+    //printf("rank %d reading chunk_%d\n",rank,rank);
+    readMatrix(cols,rows,vals,rowDataNumber,fileName);
+    printf("rank %d data written in file %d\n",rank,nPoints);
+    //printf("rank %d finished reading chunk_%d\n",rank,rank);
+    
+    /*
     for(int i = 0; i<10; i++){
         printf("rank: %d before comput rowDataNumber[%d]: %d\n",rank,i,rowDataNumber[i]);
-    }
+    }*/
 
 	
     int nonZero = 0;
@@ -168,53 +200,66 @@ extern "C" void launch_multiply(int rank, double *vector, double *resVector)
 	       nonZero = rowDataNumber[i];
 	    }
     }
-
+    /*
     for(int i = 0; i<10; i++){
         printf("rank: %d after comput rowDataNumber[%d]: %d\n",rank,i,rowDataNumber[i]);
-    }
+    }*/
     	
-    printf("rank %d copy data to GPU.....\n",rank);
-    for(int i = 0; i<N; i++){
+    //printf("rank %d copy data to GPU.....\n",rank);
+    for(int i = 0; i<columsN; i++){
 		vector_gpu[i] = vector[i];
 		resVector_gpu[i] = 0.0;
-                validationVec[i] = 0.0;
+                validVec_gpu[i] = 0.0;
     }
     //printf("rank %d vec[0] = %f\n",rank,vector_gpu[0]);
 
-
+    start = high_resolution_clock::now();
     int blockSize = prop.maxThreadsDim[2];
     int numBlocks = min(prop.multiProcessorCount, (N + blockSize - 1)/ blockSize);	
     //cout<<"blockSize: "<<blockSize<<"\n";
     //cout<<"numBlocks: "<<numBlocks<<"\n";
-    printf("rank %d starting computations\n",rank);	
+    //printf("rank %d starting computations\n",rank);	
     multMatrixVector<<< blockSize,numBlocks >>> (N,rows,cols,vals,vector_gpu, resVector_gpu,rowDataNumber);
-    multMatrixVector<<< 1,1 >>>(N,rows,cols,vals,vector_gpu, validationVec,rowDataNumber);
-    printf("rank %d finished computations\n",rank);
     cudaDeviceSynchronize();
-    printf("rank %d copy data to CPU.....\n",rank);
+
+    multMatrixVectorValid(nPoints,rows,cols,vals,vector_gpu, validVec_gpu);
+    //printf("rank %d finished computations\n",rank);
+    cudaDeviceSynchronize();
+	
+    stop = high_resolution_clock::now();
+    duration = duration_cast<milliseconds>(stop - start);
+
+    cout << " rank: "<<rank<<" GPU computation time: "
+         << duration.count() << " milliseconds" << endl;
+	
+    
+    //printf("rank %d copy data to CPU.....\n",rank);
     //printf("rank %d res[%d] = %f\n",rank,rank, resVector_gpu[rank]);
-    for(int i = 0; i<N; i++){
+    for(int i = 0; i<columsN; i++){
 		vector[i] = vector_gpu[i];
 		resVector[i] = resVector_gpu[i];
+		validVector[i] = validVec_gpu[i];
     }
 
     double maxError = 0.0;
-    for (int i = 0; i < N; i++){
-        maxError = fmax(maxError, fabs(resVector_gpu[i]-validationVec[i]));
+    for (int i = 0; i < columsN; i++){
+        maxError = fmax(maxError, fabs(resVector_gpu[i]-validVec_gpu[i]));
     }
     
     printf("rank %d -- Max error = %f\n",rank,maxError);
-
+    
     double eps = 1e-13;
     for(int i = 0; i<N; i++){
-        if(fabs(validationVec[i])>eps || fabs(resVector_gpu[i])>eps){
-            printf("rank: %d validVec[%d] = %f\n",rank,i,validationVec[i]);
+        //if(fabs(validVec_gpu[i])>eps || fabs(resVector_gpu[i])>eps){
+
+        if(fabs(resVector_gpu[i]-validVec_gpu[i])>eps){
+            printf("rank: %d validVec[%d] = %f\n",rank,i,validVec_gpu[i]);
             printf("rank: %d resVec_gpu[%d] = %f\n",rank,i,resVector_gpu[i]);
         }
     }
 
-    printf("rank %d free GPU memory\n",rank);
-    cudaFree(validationVec);
+    //printf("rank %d free GPU memory\n",rank);
+    cudaFree(validVec_gpu);
     cudaFree(vals);
     cudaFree(rows);
     cudaFree(cols);
